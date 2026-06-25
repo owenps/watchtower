@@ -1413,7 +1413,7 @@ func reasonIcon(reason string) string {
 	r := strings.ToLower(reason)
 	switch {
 	case strings.Contains(r, "thumbs-up"):
-		return "↻"
+		return "+"
 	case strings.Contains(r, "ready to merge"):
 		return "✓"
 	case strings.Contains(r, "failed") || strings.Contains(r, "conflict") || strings.Contains(r, "changes requested"):
