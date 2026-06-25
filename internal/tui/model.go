@@ -735,6 +735,7 @@ func (m Model) settingsEntries(rowWidth int) []settingEntry {
 		{text: settingRow("watch issues I opened", onOff(value(repo.WatchMyIssues)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 2},
 		{text: settingRow("watch issues assigned to me", onOff(value(repo.WatchAssignedIssues)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 3},
 		{text: settingRow("watch PRs ready for my review", onOff(value(repo.WatchReviewPRs)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 4},
+		{text: settingRow("watch thumbs-up on my PR description", onOff(value(repo.WatchPRDescriptionThumbsUp)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 5},
 		{text: ""},
 		{text: "remove repo", selectable: true, kind: "remove", repoIndex: repoIndex},
 	}
@@ -858,6 +859,8 @@ func (m *Model) toggleRepoField(repoIndex, field int) {
 		repo.WatchAssignedIssues = boolp(!value(repo.WatchAssignedIssues))
 	case 4:
 		repo.WatchReviewPRs = boolp(!value(repo.WatchReviewPRs))
+	case 5:
+		repo.WatchPRDescriptionThumbsUp = boolp(!value(repo.WatchPRDescriptionThumbsUp))
 	}
 }
 
@@ -912,12 +915,13 @@ func (m Model) addRepoFromInput() (tea.Model, tea.Cmd) {
 		}
 	}
 	m.cfg.Repos = append(m.cfg.Repos, config.Repo{
-		Name:                name,
-		Enabled:             boolp(true),
-		WatchMyPRs:          boolp(true),
-		WatchMyIssues:       boolp(true),
-		WatchAssignedIssues: boolp(true),
-		WatchReviewPRs:      boolp(false),
+		Name:                       name,
+		Enabled:                    boolp(true),
+		WatchMyPRs:                 boolp(true),
+		WatchMyIssues:              boolp(true),
+		WatchAssignedIssues:        boolp(true),
+		WatchReviewPRs:             boolp(false),
+		WatchPRDescriptionThumbsUp: boolp(false),
 	})
 	rules, err := m.cfg.RepoRules()
 	if err != nil {
@@ -1013,7 +1017,7 @@ func (m Model) fetch() tea.Cmd {
 			if !rule.Enabled {
 				continue
 			}
-			items, err := m.source.FetchRepo(ctx, rule.Name, observer)
+			items, err := m.source.FetchRepo(ctx, rule.Name, observer, rule.WatchPRDescriptionThumbsUp)
 			if err != nil {
 				return fetchMsg{err: err}
 			}
@@ -1407,6 +1411,8 @@ func shortRepo(repo string) string {
 func reasonIcon(reason string) string {
 	r := strings.ToLower(reason)
 	switch {
+	case strings.Contains(r, "👍") || strings.Contains(r, "thumbs-up"):
+		return "👍"
 	case strings.Contains(r, "ready to merge"):
 		return "✓"
 	case strings.Contains(r, "failed") || strings.Contains(r, "conflict") || strings.Contains(r, "changes requested"):
@@ -1423,6 +1429,8 @@ func reasonIcon(reason string) string {
 func reasonIconStyle(reason string) lipgloss.Style {
 	r := strings.ToLower(reason)
 	switch {
+	case strings.Contains(r, "👍") || strings.Contains(r, "thumbs-up"):
+		return greenStyle
 	case strings.Contains(r, "ready to merge"):
 		return greenStyle
 	case strings.Contains(r, "failed") || strings.Contains(r, "conflict") || strings.Contains(r, "changes requested"):

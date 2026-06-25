@@ -20,12 +20,13 @@ type Config struct {
 }
 
 type Repo struct {
-	Name                string `toml:"name"`
-	Enabled             *bool  `toml:"enabled"`
-	WatchMyPRs          *bool  `toml:"watch_my_prs"`
-	WatchMyIssues       *bool  `toml:"watch_my_issues"`
-	WatchAssignedIssues *bool  `toml:"watch_assigned_issues"`
-	WatchReviewPRs      *bool  `toml:"watch_review_prs"`
+	Name                       string `toml:"name"`
+	Enabled                    *bool  `toml:"enabled"`
+	WatchMyPRs                 *bool  `toml:"watch_my_prs"`
+	WatchMyIssues              *bool  `toml:"watch_my_issues"`
+	WatchAssignedIssues        *bool  `toml:"watch_assigned_issues"`
+	WatchReviewPRs             *bool  `toml:"watch_review_prs"`
+	WatchPRDescriptionThumbsUp *bool  `toml:"watch_pr_description_thumbs_up"`
 }
 
 type ActionConfig struct {
@@ -112,6 +113,9 @@ func (c *Config) ApplyDefaults() {
 		if c.Repos[i].WatchReviewPRs == nil {
 			c.Repos[i].WatchReviewPRs = boolp(false)
 		}
+		if c.Repos[i].WatchPRDescriptionThumbsUp == nil {
+			c.Repos[i].WatchPRDescriptionThumbsUp = boolp(false)
+		}
 	}
 	for i := range c.Actions {
 		if c.Actions[i].Risk == "" {
@@ -156,12 +160,13 @@ func (c Config) RepoRules() (map[string]domain.RepoRules, error) {
 			return nil, fmt.Errorf("repo name cannot be empty")
 		}
 		rules[repo.Name] = domain.RepoRules{
-			Name:                repo.Name,
-			Enabled:             value(repo.Enabled),
-			WatchMyPRs:          value(repo.WatchMyPRs),
-			WatchMyIssues:       value(repo.WatchMyIssues),
-			WatchAssignedIssues: value(repo.WatchAssignedIssues),
-			WatchReviewPRs:      value(repo.WatchReviewPRs),
+			Name:                       repo.Name,
+			Enabled:                    value(repo.Enabled),
+			WatchMyPRs:                 value(repo.WatchMyPRs),
+			WatchMyIssues:              value(repo.WatchMyIssues),
+			WatchAssignedIssues:        value(repo.WatchAssignedIssues),
+			WatchReviewPRs:             value(repo.WatchReviewPRs),
+			WatchPRDescriptionThumbsUp: value(repo.WatchPRDescriptionThumbsUp),
 		}
 	}
 	return rules, nil
@@ -182,6 +187,7 @@ terminal_bell = true
 # watch_my_issues = true
 # watch_assigned_issues = true
 # watch_review_prs = false
+# watch_pr_description_thumbs_up = false
 
 [[actions]]
 name = "summarize"

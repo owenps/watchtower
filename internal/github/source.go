@@ -38,7 +38,7 @@ func (s Source) Viewer(ctx context.Context) (string, error) {
 	return resp.Data.Viewer.Login, nil
 }
 
-func (s Source) FetchRepo(ctx context.Context, repo, observer string) ([]domain.RawItem, error) {
+func (s Source) FetchRepo(ctx context.Context, repo, observer string, includePRReactions bool) ([]domain.RawItem, error) {
 	owner, name, ok := strings.Cut(repo, "/")
 	if !ok || owner == "" || name == "" {
 		return nil, fmt.Errorf("invalid repo %q; want owner/name", repo)
@@ -48,6 +48,7 @@ func (s Source) FetchRepo(ctx context.Context, repo, observer string) ([]domain.
 		"-f", "query="+query,
 		"-F", "owner="+owner,
 		"-F", "name="+name,
+		"-F", fmt.Sprintf("includePRReactions=%t", includePRReactions),
 	)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -129,6 +130,7 @@ func normalizePR(repo, observer string, pr graphPR) domain.RawItem {
 			acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: summary(c.BodyText), Body: cleanBody(c.BodyText)})
 		}
 	}
+	setLatestDescriptionThumbsUp(&item, pr.Reactions.Nodes, observer)
 	setLatestHuman(&item, acts, observer)
 	return item
 }
@@ -158,6 +160,20 @@ func normalizeIssue(repo, observer string, issue graphIssue) domain.RawItem {
 	}
 	setLatestHuman(&item, acts, observer)
 	return item
+}
+
+func setLatestDescriptionThumbsUp(item *domain.RawItem, reactions []graphReaction, observer string) {
+	for _, reaction := range reactions {
+		login := reaction.User.Login
+		at := parseTime(reaction.CreatedAt)
+		if login == "" || login == observer || at.IsZero() {
+			continue
+		}
+		if at.After(item.PRDescriptionThumbsUpAt) {
+			item.PRDescriptionThumbsUpAt = at
+			item.PRDescriptionThumbsUpBy = login
+		}
+	}
 }
 
 func setLatestHuman(item *domain.RawItem, acts []activity, observer string) {
@@ -267,6 +283,9 @@ type graphPR struct {
 	Commits struct {
 		Nodes []graphCommitNode `json:"nodes"`
 	} `json:"commits"`
+	Reactions struct {
+		Nodes []graphReaction `json:"nodes"`
+	} `json:"reactions"`
 }
 
 type graphIssue struct {
@@ -298,6 +317,11 @@ type graphReview struct {
 	Author      graphActor `json:"author"`
 }
 
+type graphReaction struct {
+	CreatedAt string     `json:"createdAt"`
+	User      graphActor `json:"user"`
+}
+
 type graphThread struct {
 	IsResolved bool `json:"isResolved"`
 	Comments   struct {
@@ -314,7 +338,7 @@ type graphCommitNode struct {
 	} `json:"commit"`
 }
 
-const query = `query($owner: String!, $name: String!) {
+const query = `query($owner: String!, $name: String!, $includePRReactions: Boolean!) {
   repository(owner: $owner, name: $name) {
     name
     pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
@@ -325,6 +349,7 @@ const query = `query($owner: String!, $name: String!) {
         latestReviews(first: 20) { nodes { state submittedAt body author { login } } }
         reviewThreads(first: 50) { nodes { isResolved comments(last: 1) { nodes { author { login } createdAt body } } } }
         commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
+        reactions(content: THUMBS_UP, last: 20) @include(if: $includePRReactions) { nodes { createdAt user { login } } }
       }
     }
     issues(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {

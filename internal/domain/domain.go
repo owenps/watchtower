@@ -26,12 +26,13 @@ const (
 )
 
 type RepoRules struct {
-	Name                string
-	Enabled             bool
-	WatchMyPRs          bool
-	WatchMyIssues       bool
-	WatchAssignedIssues bool
-	WatchReviewPRs      bool
+	Name                       string
+	Enabled                    bool
+	WatchMyPRs                 bool
+	WatchMyIssues              bool
+	WatchAssignedIssues        bool
+	WatchReviewPRs             bool
+	WatchPRDescriptionThumbsUp bool
 }
 
 type ItemState struct {
@@ -53,20 +54,22 @@ type RawItem struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	Draft              bool
-	Mergeable          bool
-	Merged             bool
-	Closed             bool
-	ReviewDecision     string
-	UnresolvedThreads  int
-	CheckState         CheckState
-	CheckStateAt       time.Time
-	LastCommitAt       time.Time
-	LastHumanAt        time.Time
-	LastHumanAuthor    string
-	LastHumanSummary   string
-	LastHumanBody      string
-	AssignedToObserver bool
+	Draft                   bool
+	Mergeable               bool
+	Merged                  bool
+	Closed                  bool
+	ReviewDecision          string
+	UnresolvedThreads       int
+	CheckState              CheckState
+	CheckStateAt            time.Time
+	LastCommitAt            time.Time
+	LastHumanAt             time.Time
+	LastHumanAuthor         string
+	LastHumanSummary        string
+	LastHumanBody           string
+	PRDescriptionThumbsUpAt time.Time
+	PRDescriptionThumbsUpBy string
+	AssignedToObserver      bool
 }
 
 type InboxItem struct {
@@ -98,7 +101,7 @@ func Classify(items []RawItem, states map[string]ItemState, rules map[string]Rep
 			continue
 		}
 
-		reason, actionAt := actionable(item, observer)
+		reason, actionAt := actionable(item, observer, rule)
 		if reason != "" && actionAt.After(state.LastSeenActionAt) {
 			incoming = append(incoming, InboxItem{RawItem: item, Lane: LaneIncoming, Reason: reason, ActionAt: actionAt})
 			continue
@@ -127,26 +130,30 @@ func autoWatched(item RawItem, rule RepoRules, observer string) bool {
 	}
 }
 
-func actionable(item RawItem, observer string) (string, time.Time) {
+func actionable(item RawItem, observer string, rule RepoRules) (string, time.Time) {
 	if item.Kind == KindPR {
 		if item.Draft {
 			return "", time.Time{}
 		}
 
 		if item.Author == observer {
+			var signals []actionSignal
 			if item.LastHumanAuthor != "" && item.LastHumanAuthor != observer {
-				return item.LastHumanAuthor + " replied", item.LastHumanAt
+				signals = append(signals, actionSignal{Reason: item.LastHumanAuthor + " replied", At: item.LastHumanAt})
+			}
+			if rule.WatchPRDescriptionThumbsUp && item.PRDescriptionThumbsUpBy != "" {
+				signals = append(signals, actionSignal{Reason: item.PRDescriptionThumbsUpBy + " 👍 on PR", At: item.PRDescriptionThumbsUpAt})
 			}
 			if item.CheckState == CheckFail {
-				return "checks failed", firstTime(item.CheckStateAt, item.UpdatedAt)
+				signals = append(signals, actionSignal{Reason: "checks failed", At: firstTime(item.CheckStateAt, item.UpdatedAt)})
 			}
 			if readyToMerge(item) {
-				return "ready to merge", latest(item.UpdatedAt, item.CheckStateAt, item.LastHumanAt)
+				signals = append(signals, actionSignal{Reason: "ready to merge", At: latest(item.UpdatedAt, item.CheckStateAt, item.LastHumanAt)})
 			}
 			if !item.Mergeable {
-				return "merge conflict", item.UpdatedAt
+				signals = append(signals, actionSignal{Reason: "merge conflict", At: item.UpdatedAt})
 			}
-			return "", time.Time{}
+			return latestSignal(signals)
 		}
 
 		if readyForReview(item) {
@@ -165,6 +172,24 @@ func actionable(item RawItem, observer string) (string, time.Time) {
 	}
 
 	return "", time.Time{}
+}
+
+type actionSignal struct {
+	Reason string
+	At     time.Time
+}
+
+func latestSignal(signals []actionSignal) (string, time.Time) {
+	var latest actionSignal
+	for _, signal := range signals {
+		if signal.Reason == "" || signal.At.IsZero() {
+			continue
+		}
+		if signal.At.After(latest.At) {
+			latest = signal
+		}
+	}
+	return latest.Reason, latest.At
 }
 
 func readyToMerge(item RawItem) bool {
