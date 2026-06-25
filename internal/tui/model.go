@@ -364,8 +364,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.changeSelectedSetting(-1)
 		case "enter", " ":
 			return m, m.changeSelectedSetting(1)
-		case "s":
-			return m, m.saveSettings()
 		}
 		return m, nil
 	}
@@ -682,7 +680,7 @@ func (m Model) settingsModal() string {
 		}
 		shown = append(shown, cursor+" "+row)
 	}
-	footer := "tab switch · j/k select · ←/→ change · enter select · s save · ?/esc close"
+	footer := "tab switch · j/k select · ←/→ change · enter select · ?/esc close"
 	if len(entries) > visible {
 		footer = fmt.Sprintf("%d/%d · %s", m.settingsIndex+1, len(entries), footer)
 	}
@@ -823,15 +821,18 @@ func (m *Model) changeSelectedSetting(delta int) tea.Cmd {
 	switch entry.kind {
 	case "refresh":
 		m.shiftRefresh(delta)
+		return m.saveSettings()
 	case "bell":
 		v := !(m.cfg.TerminalBell != nil && *m.cfg.TerminalBell)
 		m.cfg.TerminalBell = boolp(v)
 		if v {
 			m.status = "sound test"
-			return tea.Batch(newIncomingSoundCmd(), tea.Tick(2*time.Second, func(time.Time) tea.Msg { return statusClearMsg{} }))
+			return tea.Batch(m.saveSettings(), newIncomingSoundCmd(), tea.Tick(2*time.Second, func(time.Time) tea.Msg { return statusClearMsg{} }))
 		}
+		return m.saveSettings()
 	case "repo":
 		m.toggleRepoField(entry.repoIndex, entry.field)
+		return m.saveSettings()
 	case "add":
 		m.repoInput = ""
 		m.repoInputFromSettings = true
