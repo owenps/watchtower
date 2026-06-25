@@ -108,9 +108,17 @@ func normalizePR(repo, observer string, pr graphPR) domain.RawItem {
 		acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: trim(c.BodyText)})
 	}
 	for _, r := range pr.LatestReviews.Nodes {
-		if r.State == "COMMENTED" || r.State == "CHANGES_REQUESTED" || r.State == "APPROVED" {
-			acts = append(acts, activity{At: parseTime(r.SubmittedAt), Author: r.Author.Login, Text: strings.ToLower(strings.ReplaceAll(r.State, "_", " "))})
+		if r.State != "COMMENTED" && r.State != "CHANGES_REQUESTED" && r.State != "APPROVED" {
+			continue
 		}
+		text := trim(r.BodyText)
+		if text == "" {
+			if r.State == "COMMENTED" {
+				continue
+			}
+			text = strings.ToLower(strings.ReplaceAll(r.State, "_", " "))
+		}
+		acts = append(acts, activity{At: parseTime(r.SubmittedAt), Author: r.Author.Login, Text: text})
 	}
 	for _, t := range pr.ReviewThreads.Nodes {
 		if !t.IsResolved {
@@ -270,6 +278,7 @@ type graphComment struct {
 type graphReview struct {
 	State       string     `json:"state"`
 	SubmittedAt string     `json:"submittedAt"`
+	BodyText    string     `json:"bodyText"`
 	Author      graphActor `json:"author"`
 }
 
@@ -297,7 +306,7 @@ const query = `query($owner: String!, $name: String!) {
         number title url state isDraft mergeable merged reviewDecision createdAt updatedAt
         author { login }
         comments(last: 10) { nodes { author { login } createdAt bodyText } }
-        latestReviews(first: 20) { nodes { state submittedAt author { login } } }
+        latestReviews(first: 20) { nodes { state submittedAt bodyText author { login } } }
         reviewThreads(first: 50) { nodes { isResolved comments(last: 1) { nodes { author { login } createdAt bodyText } } } }
         commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
       }
