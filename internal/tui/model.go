@@ -45,17 +45,20 @@ type Model struct {
 	filter       string
 	mode         mode
 
-	pending        map[string]pending
-	toasts         []toast
-	actions        []config.ActionConfig
-	actIndex       int
-	settingsIndex  int
-	settingsOffset int
-	detailScroll   int
-	repoInput      string
-	output         string
-	confirm        *config.ActionConfig
-	initial        bool
+	pending               map[string]pending
+	toasts                []toast
+	actions               []config.ActionConfig
+	actIndex              int
+	settingsTab           int
+	settingsIndex         int
+	settingsOffset        int
+	detailScroll          int
+	repoInput             string
+	repoInputFromSettings bool
+	removeRepoIndex       int
+	output                string
+	confirm               *config.ActionConfig
+	initial               bool
 }
 
 type mode int
@@ -68,6 +71,7 @@ const (
 	modeFullDetail
 	modeSettings
 	modeRepoInput
+	modeRemoveRepoConfirm
 )
 
 type pending struct {
@@ -301,6 +305,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.mode == modeRemoveRepoConfirm {
+		switch key {
+		case "y", "Y":
+			return m.removeRepo(m.removeRepoIndex)
+		case "n", "N", "esc":
+			m.mode = modeSettings
+		}
+		return m, nil
+	}
 	if m.mode == modeFullDetail {
 		switch key {
 		case "esc", "enter":
@@ -339,6 +352,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch key {
 		case "esc", "?":
 			m.mode = modeNormal
+		case "tab":
+			m.nextSettingsTab()
 		case "up", "k":
 			m.moveSettings(-1)
 		case "down", "j":
@@ -357,9 +372,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.mode == modeRepoInput {
 		switch key {
 		case "esc":
-			if len(m.cfg.Repos) == 0 {
+			if len(m.cfg.Repos) == 0 && !m.repoInputFromSettings {
 				return m, tea.Quit
 			}
+			m.repoInputFromSettings = false
 			m.mode = modeSettings
 		case "enter":
 			return m.addRepoFromInput()
@@ -402,6 +418,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeFilter
 	case "?":
 		m.mode = modeSettings
+		m.clampSettingsTab()
 		m.settingsIndex = 0
 		m.settingsOffset = 0
 		m.ensureSettingsSelection(1)
@@ -444,6 +461,9 @@ func (m Model) View() string {
 	}
 	if m.mode == modeRepoInput {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.repoInputModal())
+	}
+	if m.mode == modeRemoveRepoConfirm {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.removeRepoConfirmModal())
 	}
 
 	header := m.topBar()
@@ -662,14 +682,14 @@ func (m Model) settingsModal() string {
 		}
 		shown = append(shown, cursor+" "+row)
 	}
-	footer := "j/k select · ←/→ change · enter toggle · s save · ?/esc close"
+	footer := "tab switch · j/k select · ←/→ change · enter select · s save · ?/esc close"
 	if len(entries) > visible {
 		footer = fmt.Sprintf("%d/%d · %s", m.settingsIndex+1, len(entries), footer)
 	}
 	if m.status != "" {
 		footer += " · " + m.status
 	}
-	lines := []string{strings.Join(shown, "\n"), "", footer}
+	lines := []string{m.settingsTabs(width - 4), "", strings.Join(shown, "\n"), "", footer}
 	content := strings.Join(lines, "\n")
 	return renderTitledBox(width, len(strings.Split(content, "\n"))+2, "settings", content)
 }
@@ -678,32 +698,74 @@ func (m Model) settingsModalWidth() int {
 	return min(78, max(44, m.width-4))
 }
 
-func (m Model) settingsEntries(rowWidth int) []settingEntry {
-	entries := []settingEntry{
-		{text: settingRow("refresh interval", m.refreshLabel(), rowWidth), selectable: true, kind: "refresh"},
-		{text: settingRow("terminal bell", onOff(m.cfg.TerminalBell != nil && *m.cfg.TerminalBell), rowWidth), selectable: true, kind: "bell"},
+func (m Model) settingsTabs(rowWidth int) string {
+	tab := m.clampedSettingsTab()
+	labels := []string{"General"}
+	for _, repo := range m.cfg.Repos {
+		labels = append(labels, shortRepo(repo.Name))
 	}
-	for i, repo := range m.cfg.Repos {
-		if i > 0 {
-			entries = append(entries, settingEntry{text: ""})
+	parts := make([]string, 0, len(labels))
+	for i, label := range labels {
+		if i == tab {
+			label = "[" + label + "]"
 		}
-		name := repo.Name
-		entries = append(entries,
-			settingEntry{text: settingRow(name+" enabled", onOff(value(repo.Enabled)), rowWidth), selectable: true, kind: "repo", repoIndex: i, field: 0},
-			settingEntry{text: settingRow(name+" my PRs", onOff(value(repo.WatchMyPRs)), rowWidth), selectable: true, kind: "repo", repoIndex: i, field: 1},
-			settingEntry{text: settingRow(name+" my issues", onOff(value(repo.WatchMyIssues)), rowWidth), selectable: true, kind: "repo", repoIndex: i, field: 2},
-			settingEntry{text: settingRow(name+" assigned issues", onOff(value(repo.WatchAssignedIssues)), rowWidth), selectable: true, kind: "repo", repoIndex: i, field: 3},
-			settingEntry{text: settingRow(name+" review PRs", onOff(value(repo.WatchReviewPRs)), rowWidth), selectable: true, kind: "repo", repoIndex: i, field: 4},
-		)
+		parts = append(parts, label)
 	}
-	if len(m.cfg.Repos) == 0 {
-		entries = append(entries, settingEntry{text: mutedStyle.Render("no repos configured")})
+	return ansi.Truncate(strings.Join(parts, "  "), rowWidth, "…")
+}
+
+func (m Model) settingsEntries(rowWidth int) []settingEntry {
+	if m.clampedSettingsTab() == 0 {
+		entries := []settingEntry{
+			{text: settingRow("refresh interval", m.refreshLabel(), rowWidth), selectable: true, kind: "refresh"},
+			{text: settingRow("terminal bell", onOff(m.cfg.TerminalBell != nil && *m.cfg.TerminalBell), rowWidth), selectable: true, kind: "bell"},
+		}
+		if len(m.cfg.Repos) == 0 {
+			entries = append(entries, settingEntry{text: mutedStyle.Render("no repos configured")})
+		}
+		entries = append(entries, settingEntry{text: "+ add repo", selectable: true, kind: "add"})
+		return entries
 	}
-	entries = append(entries, settingEntry{text: "+ add repo", selectable: true, kind: "add"})
-	return entries
+
+	repoIndex := m.clampedSettingsTab() - 1
+	repo := m.cfg.Repos[repoIndex]
+	return []settingEntry{
+		{text: settingRow("enabled", onOff(value(repo.Enabled)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 0},
+		{text: settingRow("watch PRs I opened", onOff(value(repo.WatchMyPRs)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 1},
+		{text: settingRow("watch issues I opened", onOff(value(repo.WatchMyIssues)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 2},
+		{text: settingRow("watch issues assigned to me", onOff(value(repo.WatchAssignedIssues)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 3},
+		{text: settingRow("watch PRs ready for my review", onOff(value(repo.WatchReviewPRs)), rowWidth), selectable: true, kind: "repo", repoIndex: repoIndex, field: 4},
+		{text: ""},
+		{text: "remove repo", selectable: true, kind: "remove", repoIndex: repoIndex},
+	}
 }
 
 func (m Model) settingsCount() int { return len(m.settingsEntries(m.settingsModalWidth() - 4)) }
+
+func (m Model) clampedSettingsTab() int {
+	if m.settingsTab < 0 {
+		return 0
+	}
+	if m.settingsTab > len(m.cfg.Repos) {
+		return len(m.cfg.Repos)
+	}
+	return m.settingsTab
+}
+
+func (m *Model) clampSettingsTab() {
+	m.settingsTab = m.clampedSettingsTab()
+}
+
+func (m *Model) nextSettingsTab() {
+	count := len(m.cfg.Repos) + 1
+	if count <= 1 {
+		return
+	}
+	m.settingsTab = (m.clampedSettingsTab() + 1) % count
+	m.settingsIndex = 0
+	m.settingsOffset = 0
+	m.ensureSettingsSelection(1)
+}
 
 func (m Model) visibleSettingsRows() int {
 	return max(3, min(12, m.height-7))
@@ -767,7 +829,11 @@ func (m *Model) changeSelectedSetting(delta int) {
 		m.toggleRepoField(entry.repoIndex, entry.field)
 	case "add":
 		m.repoInput = ""
+		m.repoInputFromSettings = true
 		m.mode = modeRepoInput
+	case "remove":
+		m.removeRepoIndex = entry.repoIndex
+		m.mode = modeRemoveRepoConfirm
 	}
 }
 
@@ -793,7 +859,7 @@ func (m *Model) toggleRepoField(repoIndex, field int) {
 func (m Model) repoInputModal() string {
 	title := "add repo"
 	intro := "Add a repo to watch."
-	if len(m.cfg.Repos) == 0 {
+	if len(m.cfg.Repos) == 0 && !m.repoInputFromSettings {
 		title = "setup"
 		intro = "No repos watched."
 	}
@@ -808,6 +874,19 @@ func (m Model) repoInputModal() string {
 	}
 	lines = append(lines, "", "enter add · esc quit/close")
 	return renderTitledBox(min(58, max(34, m.width-4)), len(lines)+2, title, strings.Join(lines, "\n"))
+}
+
+func (m Model) removeRepoConfirmModal() string {
+	name := "repo"
+	if m.removeRepoIndex >= 0 && m.removeRepoIndex < len(m.cfg.Repos) {
+		name = m.cfg.Repos[m.removeRepoIndex].Name
+	}
+	lines := []string{
+		"Remove " + name + "?",
+		"",
+		"y remove · n/esc cancel",
+	}
+	return renderTitledBox(min(58, max(34, m.width-4)), len(lines)+2, "remove repo", strings.Join(lines, "\n"))
 }
 
 func (m Model) addRepoFromInput() (tea.Model, tea.Cmd) {
@@ -841,10 +920,42 @@ func (m Model) addRepoFromInput() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.rules = rules
+	m.settingsTab = len(m.cfg.Repos)
+	m.settingsIndex = 0
+	m.settingsOffset = 0
 	m.repoInput = ""
-	m.mode = modeNormal
+	if m.repoInputFromSettings {
+		m.mode = modeSettings
+		m.repoInputFromSettings = false
+	} else {
+		m.mode = modeNormal
+	}
 	m.loading = true
 	m.status = "repo added"
+	return m, tea.Batch(m.saveSettings(), m.fetch())
+}
+
+func (m Model) removeRepo(repoIndex int) (tea.Model, tea.Cmd) {
+	if repoIndex < 0 || repoIndex >= len(m.cfg.Repos) {
+		m.mode = modeSettings
+		m.status = "repo not found"
+		return m, nil
+	}
+	name := m.cfg.Repos[repoIndex].Name
+	m.cfg.Repos = append(m.cfg.Repos[:repoIndex], m.cfg.Repos[repoIndex+1:]...)
+	m.settingsTab = min(m.settingsTab, len(m.cfg.Repos))
+	m.settingsIndex = 0
+	m.settingsOffset = 0
+	rules, err := m.cfg.RepoRules()
+	if err != nil {
+		m.mode = modeSettings
+		m.status = err.Error()
+		return m, nil
+	}
+	m.rules = rules
+	m.mode = modeSettings
+	m.loading = true
+	m.status = "removed " + name
 	return m, tea.Batch(m.saveSettings(), m.fetch())
 }
 

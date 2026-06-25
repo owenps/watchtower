@@ -74,5 +74,6 @@ writes to:
 - `o` open in browser
 - `/` search
 - `?` settings
+- in settings: `tab` switches General/repo tabs, `enter` changes selected row, `s` saves
 - `r` refresh
 - `q` quit
