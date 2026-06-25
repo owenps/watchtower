@@ -574,12 +574,8 @@ func (m Model) detailText(item domain.InboxItem, full bool) string {
 		if body == "" {
 			body = item.LastHumanSummary
 		}
-		for _, line := range strings.Split(body, "\n") {
-			if line == "" {
-				fmt.Fprintln(&b, "│")
-			} else {
-				fmt.Fprintf(&b, "│ %s\n", line)
-			}
+		for _, line := range activityQuoteLines(body) {
+			fmt.Fprintln(&b, line)
 		}
 		fmt.Fprintln(&b)
 	}
@@ -1123,6 +1119,10 @@ func wrapLines(content string, width int) []string {
 			out = append(out, "")
 			continue
 		}
+		if strings.HasPrefix(line, "│ │ ") {
+			out = append(out, line)
+			continue
+		}
 		if strings.HasPrefix(line, "│ ") {
 			wrapped := strings.Split(ansi.Wordwrap(strings.TrimPrefix(line, "│ "), max(1, width-2), " "), "\n")
 			for _, part := range wrapped {
@@ -1328,6 +1328,63 @@ func displayTime(t time.Time) string {
 	return label + " " + strings.ToLower(t.Format("3:04pm"))
 }
 
+func activityQuoteLines(body string) []string {
+	lines := strings.Split(body, "\n")
+	out := make([]string, 0, len(lines)+2)
+	inCode := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			if inCode {
+				out = append(out, "│ "+codeFenceStyle.Render("└ code"))
+				inCode = false
+			} else {
+				label := strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
+				if label == "" {
+					label = "code"
+				}
+				out = append(out, "│ "+codeFenceStyle.Render("┌ "+label))
+				inCode = true
+			}
+			continue
+		}
+		if inCode {
+			out = append(out, "│ │ "+codeBlockStyle.Render(line))
+			continue
+		}
+		if line == "" {
+			out = append(out, "│")
+			continue
+		}
+		out = append(out, "│ "+styleInlineCode(line))
+	}
+	if inCode {
+		out = append(out, "│ "+codeFenceStyle.Render("└ code"))
+	}
+	return out
+}
+
+func styleInlineCode(s string) string {
+	var b strings.Builder
+	for {
+		start := strings.Index(s, "`")
+		if start < 0 {
+			b.WriteString(s)
+			break
+		}
+		end := strings.Index(s[start+1:], "`")
+		if end < 0 {
+			b.WriteString(s)
+			break
+		}
+		end += start + 1
+		b.WriteString(s[:start])
+		b.WriteString(inlineCodeStyle.Render(s[start : end+1]))
+		s = s[end+1:]
+	}
+	return b.String()
+}
+
 func checkStatusLine(state domain.CheckState) string {
 	switch state {
 	case domain.CheckPass:
@@ -1365,13 +1422,16 @@ func reviewStatusLine(decision string) string {
 var (
 	brandColor = lipgloss.Color("208") // orange
 
-	headerStyle   = lipgloss.NewStyle().Bold(true).Foreground(brandColor)
-	mutedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	selectedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Background(brandColor)
-	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	greenStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	redStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	boxStyle      = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(brandColor).Padding(0, 1)
-	outputStyle   = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(brandColor).Padding(0, 1)
-	confirmStyle  = lipgloss.NewStyle().Foreground(brandColor).Bold(true)
+	headerStyle     = lipgloss.NewStyle().Bold(true).Foreground(brandColor)
+	mutedStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	selectedStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("15")).Background(brandColor)
+	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	greenStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	redStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	inlineCodeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Background(lipgloss.Color("236"))
+	codeBlockStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Background(lipgloss.Color("236"))
+	codeFenceStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	boxStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(brandColor).Padding(0, 1)
+	outputStyle     = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(brandColor).Padding(0, 1)
+	confirmStyle    = lipgloss.NewStyle().Foreground(brandColor).Bold(true)
 )
