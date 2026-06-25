@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -1343,11 +1344,24 @@ func displayTime(t time.Time) string {
 }
 
 func activityQuoteLines(body string) []string {
+	body = sanitizeCommentHTML(body)
 	lines := strings.Split(body, "\n")
 	out := make([]string, 0, len(lines)+2)
 	inCode := false
+	inDetails := false
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+		lower := strings.ToLower(trimmed)
+		if strings.Contains(lower, "<details") {
+			inDetails = !strings.Contains(lower, "</details>")
+			continue
+		}
+		if inDetails {
+			if strings.Contains(lower, "</details>") {
+				inDetails = false
+			}
+			continue
+		}
 		if strings.HasPrefix(trimmed, "```") {
 			inCode = !inCode
 			continue
@@ -1360,28 +1374,78 @@ func activityQuoteLines(body string) []string {
 			out = append(out, "│")
 			continue
 		}
-		out = append(out, "│ "+styleInlineCode(line))
+		line = stripImages(line)
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		out = append(out, "│ "+styleInlineMarkdown(line))
 	}
 	return out
 }
 
-func styleInlineCode(s string) string {
+func sanitizeCommentHTML(s string) string {
+	s = htmlCommentRE.ReplaceAllString(s, "")
+	for _, re := range noisyHTMLBlockREs {
+		s = re.ReplaceAllString(s, "")
+	}
+	s = htmlBreakRE.ReplaceAllString(s, "\n")
+	s = htmlParagraphRE.ReplaceAllString(s, "\n")
+	s = htmlTagRE.ReplaceAllString(s, "")
+	return s
+}
+
+func stripImages(s string) string {
+	s = markdownImageRE.ReplaceAllString(s, "")
+	s = htmlImageRE.ReplaceAllString(s, "")
+	return strings.TrimSpace(s)
+}
+
+func styleInlineMarkdown(s string) string {
 	var b strings.Builder
 	for {
 		start := strings.Index(s, "`")
 		if start < 0 {
-			b.WriteString(s)
+			b.WriteString(styleEmphasis(s))
 			break
 		}
 		end := strings.Index(s[start+1:], "`")
 		if end < 0 {
-			b.WriteString(s)
+			b.WriteString(styleEmphasis(s))
 			break
 		}
 		end += start + 1
-		b.WriteString(s[:start])
+		b.WriteString(styleEmphasis(s[:start]))
 		b.WriteString(inlineCodeStyle.Render(s[start : end+1]))
 		s = s[end+1:]
+	}
+	return b.String()
+}
+
+func styleEmphasis(s string) string {
+	s = applyDelimitedStyle(s, "**", boldStyle)
+	s = applyDelimitedStyle(s, "__", boldStyle)
+	s = applyDelimitedStyle(s, "*", italicStyle)
+	s = applyDelimitedStyle(s, "_", italicStyle)
+	return s
+}
+
+func applyDelimitedStyle(s, delim string, style lipgloss.Style) string {
+	var b strings.Builder
+	for {
+		start := strings.Index(s, delim)
+		if start < 0 {
+			b.WriteString(s)
+			break
+		}
+		end := strings.Index(s[start+len(delim):], delim)
+		if end < 0 {
+			b.WriteString(s)
+			break
+		}
+		end += start + len(delim)
+		b.WriteString(s[:start])
+		b.WriteString(style.Render(s[start+len(delim) : end]))
+		s = s[end+len(delim):]
 	}
 	return b.String()
 }
@@ -1423,6 +1487,22 @@ func reviewStatusLine(decision string) string {
 const codeLinePrefix = "__WT_CODE__"
 
 var (
+	markdownImageRE   = regexp.MustCompile(`!\[[^\]]*\]\([^)]*\)`)
+	htmlImageRE       = regexp.MustCompile(`(?is)<img\b[^>]*>`)
+	htmlCommentRE     = regexp.MustCompile(`(?is)<!--.*?-->`)
+	htmlBreakRE       = regexp.MustCompile(`(?i)<br\s*/?>`)
+	htmlParagraphRE   = regexp.MustCompile(`(?i)</?p\b[^>]*>`)
+	htmlTagRE         = regexp.MustCompile(`(?is)<[^>]+>`)
+	noisyHTMLBlockREs = []*regexp.Regexp{
+		regexp.MustCompile(`(?is)<details\b[^>]*>.*?</details>`),
+		regexp.MustCompile(`(?is)<picture\b[^>]*>.*?</picture>`),
+		regexp.MustCompile(`(?is)<video\b[^>]*>.*?</video>`),
+		regexp.MustCompile(`(?is)<audio\b[^>]*>.*?</audio>`),
+		regexp.MustCompile(`(?is)<iframe\b[^>]*>.*?</iframe>`),
+		regexp.MustCompile(`(?is)<svg\b[^>]*>.*?</svg>`),
+		regexp.MustCompile(`(?is)<table\b[^>]*>.*?</table>`),
+	}
+
 	brandColor = lipgloss.Color("208") // orange
 
 	headerStyle     = lipgloss.NewStyle().Bold(true).Foreground(brandColor)
@@ -1432,7 +1512,9 @@ var (
 	greenStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	redStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	inlineCodeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("223")).Background(lipgloss.Color("235"))
-	codeBlockStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("235"))
+	boldStyle       = lipgloss.NewStyle().Bold(true)
+	italicStyle     = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("250"))
+	codeBlockStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("223")).Background(lipgloss.Color("235"))
 	boxStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(brandColor).Padding(0, 1)
 	outputStyle     = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(brandColor).Padding(0, 1)
 	confirmStyle    = lipgloss.NewStyle().Foreground(brandColor).Bold(true)

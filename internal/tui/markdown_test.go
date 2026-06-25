@@ -22,3 +22,19 @@ func TestCodeBlockQuoteGutterAndHighlightDoesNotLeakMarker(t *testing.T) {
 		}
 	}
 }
+
+func TestInlineMarkdownDetailsAndImages(t *testing.T) {
+	content := strings.Join(activityQuoteLines("**bold** and *italic* and `code`\n<details>\nsecret\n</details>\n![alt](https://example.com/a.png)\n<img src=\"x\">\nafter"), "\n")
+	if strings.Contains(content, "**") || strings.Contains(content, "*italic*") {
+		t.Fatalf("markdown markers were not removed:\n%s", content)
+	}
+	if strings.Contains(content, "secret") || strings.Contains(content, "details") {
+		t.Fatalf("details were not removed:\n%s", content)
+	}
+	if strings.Contains(content, "example.com") || strings.Contains(content, "img src") || strings.Contains(content, "alt") {
+		t.Fatalf("images were not removed:\n%s", content)
+	}
+	if !strings.Contains(content, "after") {
+		t.Fatalf("content after details/images missing:\n%s", content)
+	}
+}
