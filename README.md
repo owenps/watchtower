@@ -4,6 +4,8 @@ Terminal inbox for GitHub PRs and issues that need attention.
 
 Watchtower tracks configured repos, separates actionable work into **Incoming**, keeps quiet watched work in **Watching**, and lets you mark items seen, unwatch them, open GitHub, or run configured actions without leaving the terminal.
 
+![Watchtower screenshot](assets/watchtower.png)
+
 ## Install
 
 Requires Go and the GitHub CLI.
