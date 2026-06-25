@@ -32,7 +32,7 @@ func TestClassifyPRDescriptionThumbsUpOptIn(t *testing.T) {
 	if len(incoming) != 1 || len(watching) != 0 {
 		t.Fatalf("opted in: incoming=%d watching=%d", len(incoming), len(watching))
 	}
-	if incoming[0].Reason != "alice 👍 on PR" || !incoming[0].ActionAt.Equal(now) {
+	if incoming[0].Reason != "alice thumbs-up on PR" || !incoming[0].ActionAt.Equal(now) {
 		t.Fatalf("incoming = %#v", incoming[0])
 	}
 }
@@ -59,7 +59,7 @@ func TestClassifyUsesNewerThumbsUpAfterSeenReply(t *testing.T) {
 	if len(incoming) != 1 || len(watching) != 0 {
 		t.Fatalf("incoming=%d watching=%d", len(incoming), len(watching))
 	}
-	if incoming[0].Reason != "bot 👍 on PR" || !incoming[0].ActionAt.Equal(thumbAt) {
+	if incoming[0].Reason != "bot thumbs-up on PR" || !incoming[0].ActionAt.Equal(thumbAt) {
 		t.Fatalf("incoming = %#v", incoming[0])
 	}
 }

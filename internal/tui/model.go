@@ -1412,8 +1412,8 @@ func shortRepo(repo string) string {
 func reasonIcon(reason string) string {
 	r := strings.ToLower(reason)
 	switch {
-	case strings.Contains(r, "👍") || strings.Contains(r, "thumbs-up"):
-		return "👍"
+	case strings.Contains(r, "thumbs-up"):
+		return "↻"
 	case strings.Contains(r, "ready to merge"):
 		return "✓"
 	case strings.Contains(r, "failed") || strings.Contains(r, "conflict") || strings.Contains(r, "changes requested"):
@@ -1430,8 +1430,8 @@ func reasonIcon(reason string) string {
 func reasonIconStyle(reason string) lipgloss.Style {
 	r := strings.ToLower(reason)
 	switch {
-	case strings.Contains(r, "👍") || strings.Contains(r, "thumbs-up"):
-		return greenStyle
+	case strings.Contains(r, "thumbs-up"):
+		return headerStyle
 	case strings.Contains(r, "ready to merge"):
 		return greenStyle
 	case strings.Contains(r, "failed") || strings.Contains(r, "conflict") || strings.Contains(r, "changes requested"):

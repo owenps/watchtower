@@ -142,7 +142,7 @@ func actionable(item RawItem, observer string, rule RepoRules) (string, time.Tim
 				signals = append(signals, actionSignal{Reason: item.LastHumanAuthor + " replied", At: item.LastHumanAt})
 			}
 			if rule.WatchPRDescriptionThumbsUp && item.PRDescriptionThumbsUpBy != "" {
-				signals = append(signals, actionSignal{Reason: item.PRDescriptionThumbsUpBy + " 👍 on PR", At: item.PRDescriptionThumbsUpAt})
+				signals = append(signals, actionSignal{Reason: item.PRDescriptionThumbsUpBy + " thumbs-up on PR", At: item.PRDescriptionThumbsUpAt})
 			}
 			if item.CheckState == CheckFail {
 				signals = append(signals, actionSignal{Reason: "checks failed", At: firstTime(item.CheckStateAt, item.UpdatedAt)})
