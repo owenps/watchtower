@@ -1,0 +1,4 @@
+watchtower
+*.db
+*.log
+.DS_Store
