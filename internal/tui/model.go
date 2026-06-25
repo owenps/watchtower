@@ -1052,6 +1052,9 @@ func renderBox(w, h int, content string) string {
 	contentW := max(1, w-4)
 	contentH := max(1, h-2)
 	lines := visibleWrappedContentLines(content, contentW, contentH, 0)
+	for i := range lines {
+		lines[i] = fitLine(lines[i], contentW)
+	}
 	return boxStyle.Width(styleW).Height(contentH).Render(strings.Join(lines, "\n"))
 }
 
@@ -1064,6 +1067,9 @@ func renderBoxWithFooter(w, h int, content, footer string, scroll int) string {
 		footerParts = footerParts[:contentH]
 	}
 	lines := visibleWrappedContentLines(content, contentW, max(0, contentH-len(footerParts)), scroll)
+	for i := range lines {
+		lines[i] = fitLine(lines[i], contentW)
+	}
 	for _, line := range footerParts {
 		lines = append(lines, fitLine(line, contentW))
 	}
@@ -1119,7 +1125,7 @@ func wrapLines(content string, width int) []string {
 			out = append(out, "")
 			continue
 		}
-		if strings.HasPrefix(line, "│ │ ") {
+		if strings.HasPrefix(line, codeLinePrefix) {
 			out = append(out, line)
 			continue
 		}
@@ -1190,6 +1196,14 @@ func fitLine(s string, w int) string {
 	if w <= 0 {
 		return ""
 	}
+	if strings.HasPrefix(s, codeLinePrefix) {
+		code := strings.TrimPrefix(s, codeLinePrefix)
+		return "│ " + codeBlockStyle.Render(fitPlainLine(code, max(1, w-2)))
+	}
+	return fitPlainLine(s, w)
+}
+
+func fitPlainLine(s string, w int) string {
 	if lipgloss.Width(s) > w {
 		s = ansi.Truncate(s, w, "…")
 	}
@@ -1335,21 +1349,11 @@ func activityQuoteLines(body string) []string {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "```") {
-			if inCode {
-				out = append(out, "│ "+codeFenceStyle.Render("└ code"))
-				inCode = false
-			} else {
-				label := strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
-				if label == "" {
-					label = "code"
-				}
-				out = append(out, "│ "+codeFenceStyle.Render("┌ "+label))
-				inCode = true
-			}
+			inCode = !inCode
 			continue
 		}
 		if inCode {
-			out = append(out, "│ │ "+codeBlockStyle.Render(line))
+			out = append(out, codeLinePrefix+line)
 			continue
 		}
 		if line == "" {
@@ -1357,9 +1361,6 @@ func activityQuoteLines(body string) []string {
 			continue
 		}
 		out = append(out, "│ "+styleInlineCode(line))
-	}
-	if inCode {
-		out = append(out, "│ "+codeFenceStyle.Render("└ code"))
 	}
 	return out
 }
@@ -1419,6 +1420,8 @@ func reviewStatusLine(decision string) string {
 	}
 }
 
+const codeLinePrefix = "__WT_CODE__"
+
 var (
 	brandColor = lipgloss.Color("208") // orange
 
@@ -1428,9 +1431,8 @@ var (
 	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	greenStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	redStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	inlineCodeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("230")).Background(lipgloss.Color("236"))
-	codeBlockStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("229")).Background(lipgloss.Color("236"))
-	codeFenceStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	inlineCodeStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("223")).Background(lipgloss.Color("235"))
+	codeBlockStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Background(lipgloss.Color("235"))
 	boxStyle        = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(brandColor).Padding(0, 1)
 	outputStyle     = lipgloss.NewStyle().Border(lipgloss.NormalBorder()).BorderForeground(brandColor).Padding(0, 1)
 	confirmStyle    = lipgloss.NewStyle().Foreground(brandColor).Bold(true)
