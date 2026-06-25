@@ -288,13 +288,13 @@ type graphIssue struct {
 type graphComment struct {
 	Author    graphActor `json:"author"`
 	CreatedAt string     `json:"createdAt"`
-	BodyText  string     `json:"bodyText"`
+	BodyText  string     `json:"body"`
 }
 
 type graphReview struct {
 	State       string     `json:"state"`
 	SubmittedAt string     `json:"submittedAt"`
-	BodyText    string     `json:"bodyText"`
+	BodyText    string     `json:"body"`
 	Author      graphActor `json:"author"`
 }
 
@@ -321,9 +321,9 @@ const query = `query($owner: String!, $name: String!) {
       nodes {
         number title url state isDraft mergeable merged reviewDecision createdAt updatedAt
         author { login }
-        comments(last: 10) { nodes { author { login } createdAt bodyText } }
-        latestReviews(first: 20) { nodes { state submittedAt bodyText author { login } } }
-        reviewThreads(first: 50) { nodes { isResolved comments(last: 1) { nodes { author { login } createdAt bodyText } } } }
+        comments(last: 10) { nodes { author { login } createdAt body } }
+        latestReviews(first: 20) { nodes { state submittedAt body author { login } } }
+        reviewThreads(first: 50) { nodes { isResolved comments(last: 1) { nodes { author { login } createdAt body } } } }
         commits(last: 1) { nodes { commit { committedDate statusCheckRollup { state } } } }
       }
     }
@@ -332,7 +332,7 @@ const query = `query($owner: String!, $name: String!) {
         number title url state createdAt updatedAt
         author { login }
         assignees(first: 20) { nodes { login } }
-        comments(last: 10) { nodes { author { login } createdAt bodyText } }
+        comments(last: 10) { nodes { author { login } createdAt body } }
       }
     }
   }
