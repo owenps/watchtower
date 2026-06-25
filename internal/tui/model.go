@@ -172,7 +172,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.toastTick())
 		}
 		if !m.initial && len(m.incoming) > oldIncoming && m.cfg.TerminalBell != nil && *m.cfg.TerminalBell {
-			cmds = append(cmds, func() tea.Msg { fmt.Print("\a"); return nil })
+			cmds = append(cmds, newIncomingSoundCmd())
 		}
 		m.initial = false
 		return m, tea.Batch(cmds...)
@@ -359,11 +359,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			m.moveSettings(1)
 		case "right", "l", "+", "=", "]":
-			m.changeSelectedSetting(1)
+			return m, m.changeSelectedSetting(1)
 		case "left", "h", "-", "[":
-			m.changeSelectedSetting(-1)
+			return m, m.changeSelectedSetting(-1)
 		case "enter", " ":
-			m.changeSelectedSetting(1)
+			return m, m.changeSelectedSetting(1)
 		case "s":
 			return m, m.saveSettings()
 		}
@@ -718,7 +718,7 @@ func (m Model) settingsEntries(rowWidth int) []settingEntry {
 	if m.clampedSettingsTab() == 0 {
 		entries := []settingEntry{
 			{text: settingRow("refresh interval", m.refreshLabel(), rowWidth), selectable: true, kind: "refresh"},
-			{text: settingRow("terminal bell", onOff(m.cfg.TerminalBell != nil && *m.cfg.TerminalBell), rowWidth), selectable: true, kind: "bell"},
+			{text: settingRow("sound for new incoming (macOS)", onOff(m.cfg.TerminalBell != nil && *m.cfg.TerminalBell), rowWidth), selectable: true, kind: "bell"},
 		}
 		if len(m.cfg.Repos) == 0 {
 			entries = append(entries, settingEntry{text: mutedStyle.Render("no repos configured")})
@@ -813,10 +813,10 @@ func (m *Model) adjustSettingsOffset() {
 	}
 }
 
-func (m *Model) changeSelectedSetting(delta int) {
+func (m *Model) changeSelectedSetting(delta int) tea.Cmd {
 	entries := m.settingsEntries(m.settingsModalWidth() - 4)
 	if m.settingsIndex < 0 || m.settingsIndex >= len(entries) {
-		return
+		return nil
 	}
 	entry := entries[m.settingsIndex]
 	switch entry.kind {
@@ -825,6 +825,10 @@ func (m *Model) changeSelectedSetting(delta int) {
 	case "bell":
 		v := !(m.cfg.TerminalBell != nil && *m.cfg.TerminalBell)
 		m.cfg.TerminalBell = boolp(v)
+		if v {
+			m.status = "sound test"
+			return newIncomingSoundCmd()
+		}
 	case "repo":
 		m.toggleRepoField(entry.repoIndex, entry.field)
 	case "add":
@@ -835,6 +839,7 @@ func (m *Model) changeSelectedSetting(delta int) {
 		m.removeRepoIndex = entry.repoIndex
 		m.mode = modeRemoveRepoConfirm
 	}
+	return nil
 }
 
 func (m *Model) toggleRepoField(repoIndex, field int) {
@@ -1038,6 +1043,16 @@ func (m Model) tick() tea.Cmd {
 
 func (m Model) spinnerTick() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg { return spinnerMsg{} })
+}
+
+func newIncomingSoundCmd() tea.Cmd {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	return func() tea.Msg {
+		_ = exec.Command("afplay", "/System/Library/Sounds/Glass.aiff").Run()
+		return nil
+	}
 }
 
 func (m Model) toastTick() tea.Cmd {
