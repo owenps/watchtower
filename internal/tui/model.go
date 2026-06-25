@@ -557,17 +557,29 @@ func (m Model) detailText(item domain.InboxItem, full bool) string {
 	fmt.Fprintf(&b, "%s\n\n", mutedStyle.Render(item.URL))
 	if item.Lane == domain.LaneIncoming {
 		fmt.Fprintf(&b, "%s\n", headerStyle.Render("Why"))
-		fmt.Fprintf(&b, "↻ %s\n", item.Reason)
-		if !item.ActionAt.IsZero() {
+		fmt.Fprintf(&b, "%s %s\n", reasonIcon(item.Reason), item.Reason)
+		if item.LastHumanAuthor == "" && !item.ActionAt.IsZero() {
 			fmt.Fprintf(&b, "◷ %s\n", mutedStyle.Render(displayTime(item.ActionAt)))
 		}
 		fmt.Fprintln(&b)
 	}
 	if item.LastHumanAuthor != "" {
 		fmt.Fprintf(&b, "%s\n", headerStyle.Render("Activity"))
-		fmt.Fprintf(&b, "%s\n", item.LastHumanAuthor)
-		if item.LastHumanSummary != "" {
-			fmt.Fprintf(&b, "│ %s\n", item.LastHumanSummary)
+		byline := item.LastHumanAuthor
+		if !item.LastHumanAt.IsZero() {
+			byline += " · " + displayTime(item.LastHumanAt)
+		}
+		fmt.Fprintf(&b, "%s\n", mutedStyle.Render(byline))
+		body := item.LastHumanBody
+		if body == "" {
+			body = item.LastHumanSummary
+		}
+		for _, line := range strings.Split(body, "\n") {
+			if line == "" {
+				fmt.Fprintln(&b, "│")
+			} else {
+				fmt.Fprintf(&b, "│ %s\n", line)
+			}
 		}
 		fmt.Fprintln(&b)
 	}
@@ -1109,6 +1121,13 @@ func wrapLines(content string, width int) []string {
 	for _, line := range raw {
 		if line == "" {
 			out = append(out, "")
+			continue
+		}
+		if strings.HasPrefix(line, "│ ") {
+			wrapped := strings.Split(ansi.Wordwrap(strings.TrimPrefix(line, "│ "), max(1, width-2), " "), "\n")
+			for _, part := range wrapped {
+				out = append(out, "│ "+part)
+			}
 			continue
 		}
 		out = append(out, strings.Split(ansi.Wordwrap(line, width, " "), "\n")...)

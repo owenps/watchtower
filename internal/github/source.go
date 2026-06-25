@@ -105,27 +105,28 @@ func normalizePR(repo, observer string, pr graphPR) domain.RawItem {
 
 	var acts []activity
 	for _, c := range pr.Comments.Nodes {
-		acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: trim(c.BodyText)})
+		acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: summary(c.BodyText), Body: cleanBody(c.BodyText)})
 	}
 	for _, r := range pr.LatestReviews.Nodes {
 		if r.State != "COMMENTED" && r.State != "CHANGES_REQUESTED" && r.State != "APPROVED" {
 			continue
 		}
-		text := trim(r.BodyText)
+		body := cleanBody(r.BodyText)
+		text := summary(r.BodyText)
 		if text == "" {
 			if r.State == "COMMENTED" {
 				continue
 			}
 			text = strings.ToLower(strings.ReplaceAll(r.State, "_", " "))
 		}
-		acts = append(acts, activity{At: parseTime(r.SubmittedAt), Author: r.Author.Login, Text: text})
+		acts = append(acts, activity{At: parseTime(r.SubmittedAt), Author: r.Author.Login, Text: text, Body: body})
 	}
 	for _, t := range pr.ReviewThreads.Nodes {
 		if !t.IsResolved {
 			item.UnresolvedThreads++
 		}
 		for _, c := range t.Comments.Nodes {
-			acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: trim(c.BodyText)})
+			acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: summary(c.BodyText), Body: cleanBody(c.BodyText)})
 		}
 	}
 	setLatestHuman(&item, acts, observer)
@@ -153,7 +154,7 @@ func normalizeIssue(repo, observer string, issue graphIssue) domain.RawItem {
 	}
 	var acts []activity
 	for _, c := range issue.Comments.Nodes {
-		acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: trim(c.BodyText)})
+		acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: summary(c.BodyText), Body: cleanBody(c.BodyText)})
 	}
 	setLatestHuman(&item, acts, observer)
 	return item
@@ -168,6 +169,10 @@ func setLatestHuman(item *domain.RawItem, acts []activity, observer string) {
 		item.LastHumanAt = a.At
 		item.LastHumanAuthor = a.Author
 		item.LastHumanSummary = a.Text
+		item.LastHumanBody = a.Body
+		if item.LastHumanBody == "" {
+			item.LastHumanBody = a.Text
+		}
 		return
 	}
 }
@@ -196,14 +201,25 @@ func parseTime(s string) time.Time {
 	return t
 }
 
-func trim(s string) string {
+func summary(s string) string {
 	return strings.Join(strings.Fields(s), " ")
+}
+
+func cleanBody(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	lines := strings.Split(s, "\n")
+	for i := range lines {
+		lines[i] = strings.TrimRight(lines[i], " \t")
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 type activity struct {
 	At     time.Time
 	Author string
 	Text   string
+	Body   string
 }
 
 type graphResp struct {

@@ -65,6 +65,7 @@ type RawItem struct {
 	LastHumanAt        time.Time
 	LastHumanAuthor    string
 	LastHumanSummary   string
+	LastHumanBody      string
 	AssignedToObserver bool
 }
 
