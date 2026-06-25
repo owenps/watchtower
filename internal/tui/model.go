@@ -203,7 +203,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = "✓"
 		return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg { return statusClearMsg{} })
 	case statusClearMsg:
-		if m.status == "✓" {
+		if m.status == "✓" || m.status == "sound test" {
 			m.status = ""
 		}
 		return m, nil
@@ -827,7 +827,7 @@ func (m *Model) changeSelectedSetting(delta int) tea.Cmd {
 		m.cfg.TerminalBell = boolp(v)
 		if v {
 			m.status = "sound test"
-			return newIncomingSoundCmd()
+			return tea.Batch(newIncomingSoundCmd(), tea.Tick(2*time.Second, func(time.Time) tea.Msg { return statusClearMsg{} }))
 		}
 	case "repo":
 		m.toggleRepoField(entry.repoIndex, entry.field)
