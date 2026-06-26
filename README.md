@@ -39,8 +39,6 @@ watchtower
 
 ## Config
 
-Per-repo `watch_pr_description_thumbs_up = true` sends PRs you opened to Incoming when someone else adds 👍 to the PR description. Off by default.
-
 Global config lives at:
 
 ```text
