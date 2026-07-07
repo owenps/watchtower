@@ -38,7 +38,7 @@ func (s Source) Viewer(ctx context.Context) (string, error) {
 	return resp.Data.Viewer.Login, nil
 }
 
-func (s Source) FetchRepo(ctx context.Context, repo, observer string, includePRReactions bool) ([]domain.RawItem, error) {
+func (s Source) FetchRepo(ctx context.Context, repo, observer string, includePRReactions bool, ignoredActors []string) ([]domain.RawItem, error) {
 	owner, name, ok := strings.Cut(repo, "/")
 	if !ok || owner == "" || name == "" {
 		return nil, fmt.Errorf("invalid repo %q; want owner/name", repo)
@@ -70,15 +70,15 @@ func (s Source) FetchRepo(ctx context.Context, repo, observer string, includePRR
 
 	items := make([]domain.RawItem, 0, len(resp.Data.Repository.PullRequests.Nodes)+len(resp.Data.Repository.Issues.Nodes))
 	for _, pr := range resp.Data.Repository.PullRequests.Nodes {
-		items = append(items, normalizePR(repo, observer, pr))
+		items = append(items, normalizePR(repo, observer, pr, ignoredActors))
 	}
 	for _, issue := range resp.Data.Repository.Issues.Nodes {
-		items = append(items, normalizeIssue(repo, observer, issue))
+		items = append(items, normalizeIssue(repo, observer, issue, ignoredActors))
 	}
 	return items, nil
 }
 
-func normalizePR(repo, observer string, pr graphPR) domain.RawItem {
+func normalizePR(repo, observer string, pr graphPR, ignoredActors []string) domain.RawItem {
 	item := domain.RawItem{
 		TargetID:         fmt.Sprintf("github.com/%s/pull/%d", repo, pr.Number),
 		Repo:             repo,
@@ -131,12 +131,12 @@ func normalizePR(repo, observer string, pr graphPR) domain.RawItem {
 			acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: summary(c.BodyText), Body: cleanBody(c.BodyText)})
 		}
 	}
-	setLatestDescriptionThumbsUp(&item, pr.Reactions.Nodes, observer)
-	setLatestHuman(&item, acts, observer)
+	setLatestDescriptionThumbsUp(&item, pr.Reactions.Nodes, observer, ignoredActors)
+	setLatestHuman(&item, acts, ignoredActors)
 	return item
 }
 
-func normalizeIssue(repo, observer string, issue graphIssue) domain.RawItem {
+func normalizeIssue(repo, observer string, issue graphIssue, ignoredActors []string) domain.RawItem {
 	item := domain.RawItem{
 		TargetID:  fmt.Sprintf("github.com/%s/issues/%d", repo, issue.Number),
 		Repo:      repo,
@@ -159,15 +159,15 @@ func normalizeIssue(repo, observer string, issue graphIssue) domain.RawItem {
 	for _, c := range issue.Comments.Nodes {
 		acts = append(acts, activity{At: parseTime(c.CreatedAt), Author: c.Author.Login, Text: summary(c.BodyText), Body: cleanBody(c.BodyText)})
 	}
-	setLatestHuman(&item, acts, observer)
+	setLatestHuman(&item, acts, ignoredActors)
 	return item
 }
 
-func setLatestDescriptionThumbsUp(item *domain.RawItem, reactions []graphReaction, observer string) {
+func setLatestDescriptionThumbsUp(item *domain.RawItem, reactions []graphReaction, observer string, ignoredActors []string) {
 	for _, reaction := range reactions {
 		login := reaction.User.Login
 		at := parseTime(reaction.CreatedAt)
-		if login == "" || login == observer || at.IsZero() {
+		if login == "" || login == observer || ignoredActor(login, ignoredActors) || at.IsZero() {
 			continue
 		}
 		if at.After(item.PRDescriptionThumbsUpAt) {
@@ -177,10 +177,10 @@ func setLatestDescriptionThumbsUp(item *domain.RawItem, reactions []graphReactio
 	}
 }
 
-func setLatestHuman(item *domain.RawItem, acts []activity, observer string) {
+func setLatestHuman(item *domain.RawItem, acts []activity, ignoredActors []string) {
 	sort.Slice(acts, func(i, j int) bool { return acts[i].At.After(acts[j].At) })
 	for _, a := range acts {
-		if a.Author == "" || strings.HasSuffix(strings.ToLower(a.Author), "[bot]") {
+		if a.Author == "" || strings.HasSuffix(strings.ToLower(a.Author), "[bot]") || ignoredActor(a.Author, ignoredActors) {
 			continue
 		}
 		item.LastHumanAt = a.At
@@ -192,6 +192,15 @@ func setLatestHuman(item *domain.RawItem, acts []activity, observer string) {
 		}
 		return
 	}
+}
+
+func ignoredActor(login string, ignoredActors []string) bool {
+	for _, ignored := range ignoredActors {
+		if strings.EqualFold(login, ignored) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeCheck(nodes []graphCommitNode) domain.CheckState {

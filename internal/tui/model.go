@@ -1018,7 +1018,7 @@ func (m Model) fetch() tea.Cmd {
 			if !rule.Enabled {
 				continue
 			}
-			items, err := m.source.FetchRepo(ctx, rule.Name, observer, rule.WatchPRDescriptionThumbsUp)
+			items, err := m.source.FetchRepo(ctx, rule.Name, observer, rule.WatchPRDescriptionThumbsUp, rule.IgnoredActors)
 			if err != nil {
 				return fetchMsg{err: err}
 			}

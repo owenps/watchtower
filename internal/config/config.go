@@ -20,13 +20,14 @@ type Config struct {
 }
 
 type Repo struct {
-	Name                       string `toml:"name"`
-	Enabled                    *bool  `toml:"enabled"`
-	WatchMyPRs                 *bool  `toml:"watch_my_prs"`
-	WatchMyIssues              *bool  `toml:"watch_my_issues"`
-	WatchAssignedIssues        *bool  `toml:"watch_assigned_issues"`
-	WatchReviewPRs             *bool  `toml:"watch_review_prs"`
-	WatchPRDescriptionThumbsUp *bool  `toml:"watch_pr_description_thumbs_up"`
+	Name                       string   `toml:"name"`
+	Enabled                    *bool    `toml:"enabled"`
+	WatchMyPRs                 *bool    `toml:"watch_my_prs"`
+	WatchMyIssues              *bool    `toml:"watch_my_issues"`
+	WatchAssignedIssues        *bool    `toml:"watch_assigned_issues"`
+	WatchReviewPRs             *bool    `toml:"watch_review_prs"`
+	WatchPRDescriptionThumbsUp *bool    `toml:"watch_pr_description_thumbs_up"`
+	IgnoredActors              []string `toml:"ignored_actors"`
 }
 
 type ActionConfig struct {
@@ -167,6 +168,7 @@ func (c Config) RepoRules() (map[string]domain.RepoRules, error) {
 			WatchAssignedIssues:        value(repo.WatchAssignedIssues),
 			WatchReviewPRs:             value(repo.WatchReviewPRs),
 			WatchPRDescriptionThumbsUp: value(repo.WatchPRDescriptionThumbsUp),
+			IgnoredActors:              repo.IgnoredActors,
 		}
 	}
 	return rules, nil
@@ -188,6 +190,7 @@ terminal_bell = true
 # watch_assigned_issues = true
 # watch_review_prs = false
 # watch_pr_description_thumbs_up = false
+# ignored_actors = ["github-actions", "renovate"]
 
 [[actions]]
 name = "summarize"

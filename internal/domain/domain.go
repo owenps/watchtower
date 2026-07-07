@@ -33,6 +33,7 @@ type RepoRules struct {
 	WatchAssignedIssues        bool
 	WatchReviewPRs             bool
 	WatchPRDescriptionThumbsUp bool
+	IgnoredActors              []string
 }
 
 type ItemState struct {
