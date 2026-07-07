@@ -56,6 +56,7 @@ type RawItem struct {
 
 	Draft                   bool
 	Mergeable               bool
+	MergeStateStatus        string
 	Merged                  bool
 	Closed                  bool
 	ReviewDecision          string
@@ -193,7 +194,16 @@ func latestSignal(signals []actionSignal) (string, time.Time) {
 }
 
 func readyToMerge(item RawItem) bool {
-	return item.CheckState == CheckPass && item.Mergeable && item.ReviewDecision == "APPROVED" && item.UnresolvedThreads == 0
+	return item.CheckState == CheckPass && item.Mergeable && mergeStatePermitsMerge(item.MergeStateStatus) && item.ReviewDecision == "APPROVED" && item.UnresolvedThreads == 0
+}
+
+func mergeStatePermitsMerge(status string) bool {
+	switch status {
+	case "", "CLEAN", "HAS_HOOKS":
+		return true
+	default:
+		return false
+	}
 }
 
 func readyForReview(item RawItem) bool {

@@ -63,3 +63,15 @@ func TestClassifyUsesNewerThumbsUpAfterSeenReply(t *testing.T) {
 		t.Fatalf("incoming = %#v", incoming[0])
 	}
 }
+
+func TestReadyToMergeRequiresCleanMergeState(t *testing.T) {
+	item := RawItem{CheckState: CheckPass, Mergeable: true, MergeStateStatus: "BLOCKED", ReviewDecision: "APPROVED"}
+	if readyToMerge(item) {
+		t.Fatal("blocked merge state should not be ready to merge")
+	}
+
+	item.MergeStateStatus = "CLEAN"
+	if !readyToMerge(item) {
+		t.Fatal("clean approved passing PR should be ready to merge")
+	}
+}

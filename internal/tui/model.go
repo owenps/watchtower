@@ -601,7 +601,7 @@ func (m Model) detailText(item domain.InboxItem, full bool) string {
 	if item.Kind == domain.KindPR {
 		fmt.Fprintf(&b, "%s\n", headerStyle.Render("Status"))
 		fmt.Fprintf(&b, "%s\n", checkStatusLine(item.CheckState))
-		fmt.Fprintf(&b, "%s\n", mergeableStatusLine(item.Mergeable))
+		fmt.Fprintf(&b, "%s\n", mergeStatusLine(item))
 		if item.ReviewDecision != "" {
 			fmt.Fprintf(&b, "%s\n", reviewStatusLine(item.ReviewDecision))
 		}
@@ -1598,9 +1598,27 @@ func checkStatusLine(state domain.CheckState) string {
 	}
 }
 
-func mergeableStatusLine(mergeable bool) string {
-	if mergeable {
+func mergeStatusLine(item domain.InboxItem) string {
+	switch item.MergeStateStatus {
+	case "CLEAN":
 		return "✓ mergeable"
+	case "HAS_HOOKS":
+		return "✓ mergeable after hooks"
+	case "BLOCKED":
+		return "◌ merging blocked"
+	case "BEHIND":
+		return "◌ branch behind"
+	case "DIRTY":
+		return "✕ merge conflict"
+	case "DRAFT":
+		return "◌ draft"
+	case "UNSTABLE":
+		return "◌ checks blocking merge"
+	case "UNKNOWN":
+		return mutedStyle.Render("◌ merge unknown")
+	}
+	if item.Mergeable {
+		return "✓ no merge conflicts"
 	}
 	return "✕ merge conflict"
 }

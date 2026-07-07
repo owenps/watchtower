@@ -51,6 +51,19 @@ func testItem(number int, title string) domain.InboxItem {
 	}
 }
 
+func TestDetailShowsBlockedMergeState(t *testing.T) {
+	item := testItem(1, "blocked")
+	item.MergeStateStatus = "BLOCKED"
+
+	got := New(config.Config{}, "", nil, nil, nil).detailText(item, false)
+	if !strings.Contains(got, "◌ merging blocked") {
+		t.Fatalf("detail missing blocked merge state:\n%s", got)
+	}
+	if strings.Contains(got, "✓ mergeable") || strings.Contains(got, "✓ no merge conflicts") {
+		t.Fatalf("detail should not show mergeable when blocked:\n%s", got)
+	}
+}
+
 func assertFrame(t *testing.T, view string, width, height int) {
 	t.Helper()
 	lines := strings.Split(view, "\n")

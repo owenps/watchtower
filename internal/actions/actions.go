@@ -81,7 +81,7 @@ func Context(item domain.InboxItem) string {
 	}
 	fmt.Fprintf(&b, "\nStatus:\n")
 	if item.Kind == domain.KindPR {
-		fmt.Fprintf(&b, "- Draft: %t\n- Checks: %s\n- Mergeable: %t\n- Review decision: %s\n- Unresolved threads: %d\n", item.Draft, item.CheckState, item.Mergeable, item.ReviewDecision, item.UnresolvedThreads)
+		fmt.Fprintf(&b, "- Draft: %t\n- Checks: %s\n- Mergeable: %t\n- Merge state: %s\n- Review decision: %s\n- Unresolved threads: %d\n", item.Draft, item.CheckState, item.Mergeable, item.MergeStateStatus, item.ReviewDecision, item.UnresolvedThreads)
 	}
 	fmt.Fprintf(&b, "- Author: %s\n- Updated: %s\n", item.Author, item.UpdatedAt.Format(time.RFC3339))
 	return b.String()

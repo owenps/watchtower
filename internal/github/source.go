@@ -80,21 +80,22 @@ func (s Source) FetchRepo(ctx context.Context, repo, observer string, includePRR
 
 func normalizePR(repo, observer string, pr graphPR) domain.RawItem {
 	item := domain.RawItem{
-		TargetID:       fmt.Sprintf("github.com/%s/pull/%d", repo, pr.Number),
-		Repo:           repo,
-		Kind:           domain.KindPR,
-		Number:         pr.Number,
-		Title:          pr.Title,
-		URL:            pr.URL,
-		State:          pr.State,
-		Author:         pr.Author.Login,
-		CreatedAt:      parseTime(pr.CreatedAt),
-		UpdatedAt:      parseTime(pr.UpdatedAt),
-		Draft:          pr.IsDraft,
-		Mergeable:      pr.Mergeable == "MERGEABLE",
-		Merged:         pr.Merged,
-		ReviewDecision: pr.ReviewDecision,
-		CheckState:     normalizeCheck(pr.Commits.Nodes),
+		TargetID:         fmt.Sprintf("github.com/%s/pull/%d", repo, pr.Number),
+		Repo:             repo,
+		Kind:             domain.KindPR,
+		Number:           pr.Number,
+		Title:            pr.Title,
+		URL:              pr.URL,
+		State:            pr.State,
+		Author:           pr.Author.Login,
+		CreatedAt:        parseTime(pr.CreatedAt),
+		UpdatedAt:        parseTime(pr.UpdatedAt),
+		Draft:            pr.IsDraft,
+		Mergeable:        pr.Mergeable == "MERGEABLE",
+		MergeStateStatus: pr.MergeStateStatus,
+		Merged:           pr.Merged,
+		ReviewDecision:   pr.ReviewDecision,
+		CheckState:       normalizeCheck(pr.Commits.Nodes),
 	}
 	item.CheckStateAt = item.UpdatedAt
 	if len(pr.Commits.Nodes) > 0 {
@@ -260,18 +261,19 @@ type graphActor struct {
 }
 
 type graphPR struct {
-	Number         int        `json:"number"`
-	Title          string     `json:"title"`
-	URL            string     `json:"url"`
-	State          string     `json:"state"`
-	IsDraft        bool       `json:"isDraft"`
-	Mergeable      string     `json:"mergeable"`
-	Merged         bool       `json:"merged"`
-	ReviewDecision string     `json:"reviewDecision"`
-	CreatedAt      string     `json:"createdAt"`
-	UpdatedAt      string     `json:"updatedAt"`
-	Author         graphActor `json:"author"`
-	Comments       struct {
+	Number           int        `json:"number"`
+	Title            string     `json:"title"`
+	URL              string     `json:"url"`
+	State            string     `json:"state"`
+	IsDraft          bool       `json:"isDraft"`
+	Mergeable        string     `json:"mergeable"`
+	MergeStateStatus string     `json:"mergeStateStatus"`
+	Merged           bool       `json:"merged"`
+	ReviewDecision   string     `json:"reviewDecision"`
+	CreatedAt        string     `json:"createdAt"`
+	UpdatedAt        string     `json:"updatedAt"`
+	Author           graphActor `json:"author"`
+	Comments         struct {
 		Nodes []graphComment `json:"nodes"`
 	} `json:"comments"`
 	LatestReviews struct {
@@ -343,7 +345,7 @@ const query = `query($owner: String!, $name: String!, $includePRReactions: Boole
     name
     pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
       nodes {
-        number title url state isDraft mergeable merged reviewDecision createdAt updatedAt
+        number title url state isDraft mergeable mergeStateStatus merged reviewDecision createdAt updatedAt
         author { login }
         comments(last: 10) { nodes { author { login } createdAt body } }
         latestReviews(first: 20) { nodes { state submittedAt body author { login } } }
