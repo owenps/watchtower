@@ -553,9 +553,14 @@ func (m Model) list(w, h int) string {
 
 func (m Model) preview(w, h int) string {
 	if item := m.current(); item != nil {
-		return renderBoxWithFooter(w, h, m.detailText(*item, false), detailActions(*item), 0)
+		content := strings.Join([]string{
+			m.mascot(),
+			m.attentionHeatmap(6),
+			m.detailText(*item, false),
+		}, "\n\n")
+		return renderBoxWithFooter(w, h, content, detailActions(*item), 0)
 	}
-	return renderBox(w, h, "No selection")
+	return renderBox(w, h, m.mascot())
 }
 
 func (m Model) detail(full bool) string {
@@ -608,6 +613,176 @@ func (m Model) detailText(item domain.InboxItem, full bool) string {
 		fmt.Fprintf(&b, "◌ unresolved %d\n\n", item.UnresolvedThreads)
 	}
 	return b.String()
+}
+
+func (m Model) mascot() string {
+	items := append([]domain.InboxItem{}, m.incoming...)
+	items = append(items, m.watching...)
+	needMe := 0
+	blocked := 0
+	ready := 0
+	for _, item := range items {
+		heat := attentionHeat(item)
+		if heat.me >= 4 {
+			needMe++
+		}
+		if heat.blk >= 4 {
+			blocked++
+		}
+		if heat.rdy >= 4 {
+			ready++
+		}
+	}
+
+	mood := "Tower quiet. Nothing needs you."
+	eyes := "o.o"
+	if needMe > 0 {
+		mood = fmt.Sprintf("Tower hot: %d need you", needMe)
+		eyes = "o.O"
+	} else if blocked > 0 {
+		mood = fmt.Sprintf("%d blocked", blocked)
+		eyes = "-.-"
+	} else if ready > 0 {
+		mood = fmt.Sprintf("%d ready to merge", ready)
+		eyes = "^.^"
+	}
+	return fmt.Sprintf(" /\\_/\\  %s\n( %s ) blocked %d · ready %d\n > ^ <", mood, eyes, blocked, ready)
+}
+
+func (m Model) attentionHeatmap(maxRows int) string {
+	items := m.visible()
+	if len(items) == 0 {
+		return "Heat  ME MSG REV CI BLK RDY AGE\n      ·  ·   ·   ·  ·   ·   ·"
+	}
+	start := 0
+	if m.selected >= maxRows {
+		start = m.selected - maxRows + 1
+	}
+	end := min(len(items), start+maxRows)
+
+	lines := []string{"Heat  ME MSG REV CI BLK RDY AGE"}
+	for i := start; i < end; i++ {
+		item := items[i]
+		cursor := " "
+		if i == m.selected {
+			cursor = ">"
+		}
+		heat := attentionHeat(item)
+		lines = append(lines, fmt.Sprintf("%s#%-4d %s  %s   %s   %s  %s   %s   %s",
+			cursor,
+			item.Number,
+			heatCell(heat.me),
+			heatCell(heat.msg),
+			heatCell(heat.rev),
+			heatCell(heat.ci),
+			heatCell(heat.blk),
+			heatCell(heat.rdy),
+			heatCell(heat.age),
+		))
+	}
+	return strings.Join(lines, "\n")
+}
+
+type heatScores struct {
+	me  int
+	msg int
+	rev int
+	ci  int
+	blk int
+	rdy int
+	age int
+}
+
+func attentionHeat(item domain.InboxItem) heatScores {
+	var h heatScores
+	if item.Lane == domain.LaneIncoming {
+		h.me = 4
+	}
+	if item.LastHumanAuthor != "" {
+		h.msg = 1
+		if strings.Contains(strings.ToLower(item.Reason), "replied") {
+			h.msg = 4
+		}
+	}
+	if item.Kind == domain.KindPR {
+		switch item.ReviewDecision {
+		case "REVIEW_REQUIRED":
+			h.rev = 4
+		case "CHANGES_REQUESTED":
+			h.rev = 3
+		case "APPROVED":
+			h.rev = 0
+		default:
+			h.rev = 1
+		}
+		if strings.Contains(strings.ToLower(item.Reason), "review") {
+			h.rev = max(h.rev, 4)
+		}
+
+		switch item.CheckState {
+		case domain.CheckFail:
+			h.ci = 4
+		case domain.CheckPending:
+			h.ci = 2
+		case domain.CheckUnknown:
+			h.ci = 1
+		}
+
+		switch item.MergeStateStatus {
+		case "BLOCKED", "DIRTY":
+			h.blk = 4
+		case "BEHIND", "DRAFT", "UNSTABLE", "UNKNOWN":
+			h.blk = 3
+		}
+		if !item.Mergeable {
+			h.blk = 4
+		}
+		if heatReady(item) {
+			h.rdy = 4
+		}
+	}
+	if !item.ActionAt.IsZero() {
+		age := time.Since(item.ActionAt)
+		switch {
+		case age >= 24*time.Hour:
+			h.age = 4
+		case age >= 12*time.Hour:
+			h.age = 3
+		case age >= 4*time.Hour:
+			h.age = 2
+		case age >= time.Hour:
+			h.age = 1
+		}
+	}
+	return h
+}
+
+func heatReady(item domain.InboxItem) bool {
+	return item.Kind == domain.KindPR && item.CheckState == domain.CheckPass && item.Mergeable && mergeStateAllowsReady(item.MergeStateStatus) && item.ReviewDecision == "APPROVED" && item.UnresolvedThreads == 0
+}
+
+func mergeStateAllowsReady(status string) bool {
+	switch status {
+	case "", "CLEAN", "HAS_HOOKS":
+		return true
+	default:
+		return false
+	}
+}
+
+func heatCell(score int) string {
+	switch {
+	case score >= 4:
+		return "█"
+	case score == 3:
+		return "▓"
+	case score == 2:
+		return "▒"
+	case score == 1:
+		return "░"
+	default:
+		return "·"
+	}
 }
 
 func (m Model) footer() string {
