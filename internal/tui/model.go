@@ -552,15 +552,31 @@ func (m Model) list(w, h int) string {
 }
 
 func (m Model) preview(w, h int) string {
-	if item := m.current(); item != nil {
-		content := strings.Join([]string{
-			m.mascot(),
-			m.attentionHeatmap(6),
-			m.detailText(*item, false),
-		}, "\n\n")
-		return renderBoxWithFooter(w, h, content, detailActions(*item), 0)
+	if h < 9 {
+		if item := m.current(); item != nil {
+			return renderBoxWithFooter(w, h, m.detailText(*item, false), detailActions(*item), 0)
+		}
+		return renderBox(w, h, m.mascot())
 	}
-	return renderBox(w, h, m.mascot())
+
+	attentionH := min(10, max(7, h/3))
+	if h-attentionH < 6 {
+		attentionH = max(5, h-6)
+	}
+	detailH := h - attentionH
+
+	attention := m.attentionPanel(w, attentionH)
+	if item := m.current(); item != nil {
+		detail := renderTitledBoxWithFooter(w, detailH, "Detail", m.detailText(*item, false), detailActions(*item), 0)
+		return lipgloss.JoinVertical(lipgloss.Left, attention, detail)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, attention, renderTitledBox(w, detailH, "Detail", "No selection"))
+}
+
+func (m Model) attentionPanel(w, h int) string {
+	rows := max(1, h-7)
+	content := strings.Join([]string{m.mascot(), m.attentionHeatmap(rows)}, "\n\n")
+	return renderTitledBox(w, h, "Attention", content)
 }
 
 func (m Model) detail(full bool) string {
