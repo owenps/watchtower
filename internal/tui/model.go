@@ -723,7 +723,7 @@ func heatHeader(widths []int) string {
 
 func heatLabels(widths []int) []string {
 	short := []string{"ME", "MSG", "REV", "CI", "BLK", "RDY", "AGE"}
-	long := []string{"ME", "MSG", "REVIEW", "CHECKS", "BLOCKED", "READY", "STALE"}
+	long := []string{"ME", "MESSAGE", "REVIEW", "CHECKS", "BLOCKED", "READY", "STALE"}
 	labels := make([]string, len(short))
 	for i := range labels {
 		labels[i] = short[i]
