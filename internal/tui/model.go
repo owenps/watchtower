@@ -637,7 +637,7 @@ func (m Model) mascot() string {
 	mood := "Tower quiet. Nothing needs you."
 	eyes := "o.o"
 	if needMe > 0 {
-		mood = fmt.Sprintf("Tower hot: %d need you", needMe)
+		mood = fmt.Sprintf("Incoming! %d need you.", needMe)
 		eyes = "o.O"
 	} else if blocked > 0 {
 		mood = fmt.Sprintf("%d blocked", blocked)
