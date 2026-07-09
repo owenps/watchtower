@@ -6,7 +6,7 @@ Watchtower tracks configured repos, separates actionable work into **Incoming**,
 
 ![Watchtower screenshot](assets/watchtower.png)
 
-🆕 Heatmap for PR state
+🆕 Heatmap for PR / Issue state
 
 ![Watchtower heatmap screenshot](assets/watchtower-heatmap.png)
 
