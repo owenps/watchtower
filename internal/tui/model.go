@@ -559,7 +559,7 @@ func (m Model) preview(w, h int) string {
 		return renderBox(w, h, m.mascot())
 	}
 
-	attentionH := min(10, max(7, h/3))
+	attentionH := min(16, max(9, h/2))
 	if h-attentionH < 6 {
 		attentionH = max(5, h-6)
 	}
