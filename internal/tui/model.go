@@ -575,7 +575,8 @@ func (m Model) preview(w, h int) string {
 
 func (m Model) attentionPanel(w, h int) string {
 	rows := max(1, h-7)
-	content := strings.Join([]string{m.mascot(), m.attentionHeatmap(rows)}, "\n\n")
+	contentW := max(1, w-2)
+	content := strings.Join([]string{m.mascot(), m.attentionHeatmap(rows, contentW)}, "\n\n")
 	return renderTitledBox(w, h, "Attention", content)
 }
 
@@ -665,38 +666,87 @@ func (m Model) mascot() string {
 	return fmt.Sprintf(" /\\_/\\  %s\n( %s ) blocked %d · ready %d\n > ^ <", mood, eyes, blocked, ready)
 }
 
-func (m Model) attentionHeatmap(maxRows int) string {
+func (m Model) attentionHeatmap(maxRows, width int) string {
 	items := m.visible()
+	cellWidths := heatCellWidths(width)
+	lines := []string{heatHeader(cellWidths)}
 	if len(items) == 0 {
-		return "Heat  ME MSG REV CI BLK RDY AGE\n      ·  ·   ·   ·  ·   ·   ·"
+		lines = append(lines, heatLine("", heatScores{}, cellWidths))
+		return strings.Join(lines, "\n")
 	}
+
 	start := 0
 	if m.selected >= maxRows {
 		start = m.selected - maxRows + 1
 	}
 	end := min(len(items), start+maxRows)
 
-	lines := []string{"Heat  ME MSG REV CI BLK RDY AGE"}
 	for i := start; i < end; i++ {
 		item := items[i]
-		cursor := " "
+		prefix := fmt.Sprintf(" #%d", item.Number)
 		if i == m.selected {
-			cursor = ">"
+			prefix = fmt.Sprintf(">#%d", item.Number)
 		}
-		heat := attentionHeat(item)
-		lines = append(lines, fmt.Sprintf("%s#%-4d %s  %s   %s   %s  %s   %s   %s",
-			cursor,
-			item.Number,
-			heatCell(heat.me),
-			heatCell(heat.msg),
-			heatCell(heat.rev),
-			heatCell(heat.ci),
-			heatCell(heat.blk),
-			heatCell(heat.rdy),
-			heatCell(heat.age),
-		))
+		lines = append(lines, heatLine(prefix, attentionHeat(item), cellWidths))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func heatCellWidths(width int) []int {
+	const cols = 7
+	const prefixW = 7
+	const gaps = cols - 1
+	usable := width - prefixW - gaps
+	if usable < cols {
+		return []int{1, 1, 1, 1, 1, 1, 1}
+	}
+	base := usable / cols
+	rem := usable % cols
+	widths := make([]int, cols)
+	for i := range widths {
+		widths[i] = base
+		if i < rem {
+			widths[i]++
+		}
+	}
+	return widths
+}
+
+func heatHeader(widths []int) string {
+	labels := []string{"ME", "MSG", "REV", "CI", "BLK", "RDY", "AGE"}
+	parts := make([]string, len(labels))
+	for i, label := range labels {
+		parts[i] = centeredCell(label, widths[i])
+	}
+	return padPlain("Heat", 7) + strings.Join(parts, " ")
+}
+
+func heatLine(prefix string, heat heatScores, widths []int) string {
+	values := []int{heat.me, heat.msg, heat.rev, heat.ci, heat.blk, heat.rdy, heat.age}
+	parts := make([]string, len(values))
+	for i, value := range values {
+		parts[i] = heatCell(value, widths[i])
+	}
+	return padPlain(prefix, 7) + strings.Join(parts, " ")
+}
+
+func centeredCell(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if len(s) >= width {
+		return s[:width]
+	}
+	left := (width - len(s)) / 2
+	right := width - len(s) - left
+	return strings.Repeat(" ", left) + s + strings.Repeat(" ", right)
+}
+
+func padPlain(s string, width int) string {
+	if len(s) >= width {
+		return s[:width]
+	}
+	return s + strings.Repeat(" ", width-len(s))
 }
 
 type heatScores struct {
@@ -786,19 +836,19 @@ func mergeStateAllowsReady(status string) bool {
 	}
 }
 
-func heatCell(score int) string {
+func heatCell(score, width int) string {
+	glyph := "·"
 	switch {
 	case score >= 4:
-		return "█"
+		glyph = "█"
 	case score == 3:
-		return "▓"
+		glyph = "▓"
 	case score == 2:
-		return "▒"
+		glyph = "▒"
 	case score == 1:
-		return "░"
-	default:
-		return "·"
+		glyph = "░"
 	}
+	return strings.Repeat(glyph, max(1, width))
 }
 
 func (m Model) footer() string {
