@@ -690,7 +690,7 @@ func (m Model) attentionHeatmap(maxRows, width int) string {
 		}
 		line := heatLine(prefix, attentionHeat(item), cellWidths)
 		if selected {
-			line = selectedStyle.Render(line)
+			line = headerStyle.Render(line[:7]) + line[7:]
 		}
 		lines = append(lines, line)
 	}
