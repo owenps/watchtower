@@ -713,12 +713,25 @@ func heatCellWidths(width int) []int {
 }
 
 func heatHeader(widths []int) string {
-	labels := []string{"ME", "MSG", "REV", "CI", "BLK", "RDY", "AGE"}
+	labels := heatLabels(widths)
 	parts := make([]string, len(labels))
 	for i, label := range labels {
 		parts[i] = centeredCell(label, widths[i])
 	}
 	return padPlain("Heat", 7) + strings.Join(parts, " ")
+}
+
+func heatLabels(widths []int) []string {
+	short := []string{"ME", "MSG", "REV", "CI", "BLK", "RDY", "AGE"}
+	long := []string{"ME", "MSG", "REVIEW", "CHECKS", "BLOCKED", "READY", "STALE"}
+	labels := make([]string, len(short))
+	for i := range labels {
+		labels[i] = short[i]
+		if i < len(widths) && widths[i] >= len(long[i]) {
+			labels[i] = long[i]
+		}
+	}
+	return labels
 }
 
 func heatLine(prefix string, heat heatScores, widths []int) string {
