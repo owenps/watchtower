@@ -668,7 +668,7 @@ func (m Model) mascot() string {
 func (m Model) attentionHeatmap(maxRows int) string {
 	items := m.visible()
 	if len(items) == 0 {
-		return "Heat  ME MSG REV CI BLK RDY AGE\n      ·  ·   ·   ·  ·   ·   ·"
+		return "Heat   ME MSG REV CI BLK RDY AGE\n       ░░ ░░  ░░  ░░ ░░  ░░  ░░"
 	}
 	start := 0
 	if m.selected >= maxRows {
@@ -676,7 +676,7 @@ func (m Model) attentionHeatmap(maxRows int) string {
 	}
 	end := min(len(items), start+maxRows)
 
-	lines := []string{"Heat  ME MSG REV CI BLK RDY AGE"}
+	lines := []string{"Heat   ME MSG REV CI BLK RDY AGE"}
 	for i := start; i < end; i++ {
 		item := items[i]
 		cursor := " "
@@ -684,7 +684,7 @@ func (m Model) attentionHeatmap(maxRows int) string {
 			cursor = ">"
 		}
 		heat := attentionHeat(item)
-		lines = append(lines, fmt.Sprintf("%s#%-4d %s  %s   %s   %s  %s   %s   %s",
+		lines = append(lines, fmt.Sprintf("%s#%-4d %s %s  %s  %s %s  %s  %s",
 			cursor,
 			item.Number,
 			heatCell(heat.me),
@@ -789,15 +789,15 @@ func mergeStateAllowsReady(status string) bool {
 func heatCell(score int) string {
 	switch {
 	case score >= 4:
-		return "█"
+		return "██"
 	case score == 3:
-		return "▓"
+		return "▓▓"
 	case score == 2:
-		return "▒"
+		return "▒▒"
 	case score == 1:
-		return "░"
+		return "░░"
 	default:
-		return "·"
+		return "  "
 	}
 }
 
