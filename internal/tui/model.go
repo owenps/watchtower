@@ -43,6 +43,7 @@ type Model struct {
 	status       string
 	err          error
 	filter       string
+	kindFilter   domain.Kind
 	mode         mode
 
 	pending               map[string]pending
@@ -399,6 +400,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.view = domain.LaneIncoming
 		}
 		m.selected = 0
+	case "shift+tab", "backtab":
+		m.nextKindFilter()
+		m.selected = 0
 	case "up", "k":
 		if m.selected > 0 {
 			m.selected--
@@ -494,10 +498,11 @@ func (m Model) View() string {
 func (m Model) topBar() string {
 	incoming := fmt.Sprintf("Incoming %d", len(m.incoming))
 	watching := fmt.Sprintf("Watching %d", len(m.watching))
+	kind := "  " + m.kindFilterLabel()
 	if m.view == domain.LaneIncoming {
-		return headerStyle.Render("♜  ["+incoming+"]") + mutedStyle.Render("  "+watching)
+		return headerStyle.Render("♜  ["+incoming+"]") + mutedStyle.Render("  "+watching+kind)
 	}
-	return headerStyle.Render("♜  ") + mutedStyle.Render(incoming+"  ") + headerStyle.Render("["+watching+"]")
+	return headerStyle.Render("♜  ") + mutedStyle.Render(incoming+"  ") + headerStyle.Render("["+watching+"]") + mutedStyle.Render(kind)
 }
 
 func (m Model) list(w, h int) string {
@@ -870,7 +875,7 @@ func heatCell(score, width int) string {
 }
 
 func (m Model) footer() string {
-	parts := []string{"tab switch", "j/k move", "enter detail", "/ search", "? settings", "q quit"}
+	parts := []string{"tab lane", "shift+tab kind", "j/k move", "enter detail", "/ search", "? settings", "q quit"}
 	if m.filter != "" {
 		parts = append(parts, "filter: "+m.filter)
 	}
@@ -1351,17 +1356,41 @@ func (m Model) visible() []domain.InboxItem {
 	} else {
 		items = m.watching
 	}
-	if m.filter == "" {
-		return items
-	}
+
+	out := make([]domain.InboxItem, 0, len(items))
 	q := strings.ToLower(m.filter)
-	out := []domain.InboxItem{}
 	for _, item := range items {
-		if strings.Contains(strings.ToLower(item.Title), q) || strings.Contains(strings.ToLower(item.Repo), q) || strings.Contains(fmt.Sprintf("%d", item.Number), q) {
-			out = append(out, item)
+		if m.kindFilter != "" && item.Kind != m.kindFilter {
+			continue
 		}
+		if q != "" && !strings.Contains(strings.ToLower(item.Title), q) && !strings.Contains(strings.ToLower(item.Repo), q) && !strings.Contains(fmt.Sprintf("%d", item.Number), q) {
+			continue
+		}
+		out = append(out, item)
 	}
 	return out
+}
+
+func (m *Model) nextKindFilter() {
+	switch m.kindFilter {
+	case "":
+		m.kindFilter = domain.KindPR
+	case domain.KindPR:
+		m.kindFilter = domain.KindIssue
+	default:
+		m.kindFilter = ""
+	}
+}
+
+func (m Model) kindFilterLabel() string {
+	switch m.kindFilter {
+	case domain.KindPR:
+		return "Kind PR"
+	case domain.KindIssue:
+		return "Kind issues"
+	default:
+		return "Kind all"
+	}
 }
 
 func (m Model) current() *domain.InboxItem {
