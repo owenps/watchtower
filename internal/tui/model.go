@@ -684,10 +684,15 @@ func (m Model) attentionHeatmap(maxRows, width int) string {
 	for i := start; i < end; i++ {
 		item := items[i]
 		prefix := fmt.Sprintf(" #%d", item.Number)
-		if i == m.selected {
+		selected := i == m.selected
+		if selected {
 			prefix = fmt.Sprintf(">#%d", item.Number)
 		}
-		lines = append(lines, heatLine(prefix, attentionHeat(item), cellWidths))
+		line := heatLine(prefix, attentionHeat(item), cellWidths)
+		if selected {
+			line = selectedStyle.Render(line)
+		}
+		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
 }
