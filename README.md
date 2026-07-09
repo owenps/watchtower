@@ -6,6 +6,12 @@ Watchtower tracks configured repos, separates actionable work into **Incoming**,
 
 ![Watchtower screenshot](assets/watchtower.png)
 
+```text
+         /\_/\
+        ( o.o )   ❝ try, it's free! ❞
+         > ^ <
+```
+
 ## Install
 
 Requires Go and the GitHub CLI.
