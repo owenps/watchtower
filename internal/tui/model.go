@@ -498,11 +498,10 @@ func (m Model) View() string {
 func (m Model) topBar() string {
 	incoming := fmt.Sprintf("Incoming %d", len(m.incoming))
 	watching := fmt.Sprintf("Watching %d", len(m.watching))
-	kind := "  " + m.kindFilterLabel()
 	if m.view == domain.LaneIncoming {
-		return headerStyle.Render("♜  ["+incoming+"]") + mutedStyle.Render("  "+watching+kind)
+		return headerStyle.Render("♜  ["+incoming+"]") + mutedStyle.Render("  "+watching)
 	}
-	return headerStyle.Render("♜  ") + mutedStyle.Render(incoming+"  ") + headerStyle.Render("["+watching+"]") + mutedStyle.Render(kind)
+	return headerStyle.Render("♜  ") + mutedStyle.Render(incoming+"  ") + headerStyle.Render("["+watching+"]")
 }
 
 func (m Model) list(w, h int) string {
@@ -875,7 +874,7 @@ func heatCell(score, width int) string {
 }
 
 func (m Model) footer() string {
-	parts := []string{"tab lane", "shift+tab kind", "j/k move", "enter detail", "/ search", "? settings", "q quit"}
+	parts := []string{"tab lane", "kind: " + m.kindFilterName(), "shift+tab kind", "j/k move", "enter detail", "/ search", "? settings", "q quit"}
 	if m.filter != "" {
 		parts = append(parts, "filter: "+m.filter)
 	}
@@ -1382,14 +1381,14 @@ func (m *Model) nextKindFilter() {
 	}
 }
 
-func (m Model) kindFilterLabel() string {
+func (m Model) kindFilterName() string {
 	switch m.kindFilter {
 	case domain.KindPR:
-		return "Kind PR"
+		return "prs"
 	case domain.KindIssue:
-		return "Kind issues"
+		return "issues"
 	default:
-		return "Kind all"
+		return "all"
 	}
 }
 
