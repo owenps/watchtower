@@ -663,7 +663,7 @@ func (m Model) mascot() string {
 		mood = fmt.Sprintf("%d ready to merge", ready)
 		eyes = "^.^"
 	}
-	return fmt.Sprintf(" /\\_/\\  %s\n( %s ) blocked %d · ready %d\n > ^ <", mood, eyes, blocked, ready)
+	return fmt.Sprintf(" /\\_/\\  ❝%s❞\n( %s ) blocked %d · ready %d\n > ^ <", mood, eyes, blocked, ready)
 }
 
 func (m Model) attentionHeatmap(maxRows, width int) string {
