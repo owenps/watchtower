@@ -331,7 +331,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		case "s":
 			if item := m.current(); item != nil && m.view == domain.LaneIncoming {
-				return m.togglePending("seen", *item)
+				return m.markSeen(*item)
 			}
 		case "u":
 			if item := m.current(); item != nil {
@@ -435,7 +435,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "s":
 		if item := m.current(); item != nil && m.view == domain.LaneIncoming {
-			return m.togglePending("seen", *item)
+			return m.markSeen(*item)
 		}
 	case "u":
 		if item := m.current(); item != nil {
@@ -1325,6 +1325,17 @@ func newIncomingSoundCmd() tea.Cmd {
 
 func (m Model) toastTick() tea.Cmd {
 	return tea.Tick(time.Second, func(time.Time) tea.Msg { return toastMsg{} })
+}
+
+func (m Model) markSeen(item domain.InboxItem) (tea.Model, tea.Cmd) {
+	if err := m.store.MarkSeen(context.Background(), item.TargetID, item.ActionAt); err != nil {
+		m.status = err.Error()
+		return m, nil
+	}
+	m.removeCurrent(item.TargetID)
+	m.status = "seen"
+	m.clamp()
+	return m, nil
 }
 
 func (m Model) togglePending(kind string, item domain.InboxItem) (tea.Model, tea.Cmd) {
